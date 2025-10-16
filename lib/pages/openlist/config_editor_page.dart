@@ -4,6 +4,8 @@ import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/monokai-sublime.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'package:get/get.dart';
+import 'package:path_provider/path_provider.dart';
+
 import '../../contant/native_bridge.dart';
 import '../../generated/l10n.dart';
 
@@ -35,10 +37,31 @@ class _ConfigEditorPageState extends State<ConfigEditorPage> {
         _errorMessage = null;
       });
 
-      final dataDir = await NativeBridge.appConfig.getDataDir();
+      // 获取 SettingsController 的 dataDir
+      String? dataDirRaw = await NativeBridge.appConfig.getDataDir();
+
+      // 回退默认目录
+      String dataDir;
+      if (dataDirRaw == null || dataDirRaw.isEmpty) {
+        if (Platform.isIOS) {
+          dataDir = (await getApplicationDocumentsDirectory()).path;
+        } else if (Platform.isAndroid) {
+          // Android 默认目录，可根据需求修改
+          dataDir = '/storage/emulated/0/OpenList';
+        } else {
+          // 桌面或其他平台
+          dataDir = Directory.current.path;
+        }
+
+        // 同步到 SettingsController，避免 null
+        await NativeBridge.appConfig.setDataDir(dataDir);
+      } else {
+        dataDir = dataDirRaw;
+      }
+
       _filePath = '$dataDir/config.json';
       final file = File(_filePath);
-      
+
       if (await file.exists()) {
         _controller.text = await file.readAsString();
       } else {
@@ -57,7 +80,7 @@ class _ConfigEditorPageState extends State<ConfigEditorPage> {
       final file = File(_filePath);
       await file.parent.create(recursive: true);
       await file.writeAsString(_controller.text);
-      
+
       if (mounted) {
         Get.showSnackbar(const GetSnackBar(
           message: 'Saved',
@@ -77,7 +100,7 @@ class _ConfigEditorPageState extends State<ConfigEditorPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('config.json'),
@@ -110,23 +133,24 @@ class _ConfigEditorPageState extends State<ConfigEditorPage> {
                     padding: const EdgeInsets.all(8),
                     child: Row(
                       children: [
-                        const Icon(Icons.warning, color: Colors.orange, size: 20),
+                        const Icon(Icons.warning,
+                            color: Colors.orange, size: 20),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(_errorMessage!, 
-                            style: const TextStyle(color: Colors.orange, fontSize: 12)),
+                          child: Text(_errorMessage!,
+                              style: const TextStyle(
+                                  color: Colors.orange, fontSize: 12)),
                         ),
                       ],
                     ),
                   ),
-                
                 Container(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text(_filePath, 
-                    style: Theme.of(context).textTheme.bodySmall),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Text(_filePath,
+                      style: Theme.of(context).textTheme.bodySmall),
                 ),
-                
                 Expanded(
                   child: _isPreview
                       ? SingleChildScrollView(
